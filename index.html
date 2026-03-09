@@ -167,19 +167,31 @@ body {
 #fb-wrap {
   flex: 1;
   overflow: hidden;
-  position: relative;
-  padding: 4px 8px 2px;
+  display: flex;
+  flex-direction: column;
+  padding: 2px 8px;
+  gap: 0;
 }
 
 #board {
+  flex: 1;
   width: 100%;
-  height: 100%;
+  min-height: 0;
   background: linear-gradient(180deg, #1a1005 0%, #110c04 100%);
   border-radius: 6px;
   border: 1px solid var(--border);
   box-shadow: 0 4px 24px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.02);
   position: relative;
   overflow: hidden;
+}
+
+/* Fret number bars — OUTSIDE board, top & bottom */
+.fret-nums-bar {
+  flex-shrink: 0;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  pointer-events: none;
 }
 
 /* Nut */
@@ -287,30 +299,25 @@ body {
 }
 .ndot.playing { animation: ripple 0.35s ease-out; }
 
-/* Fret number row (inside board, bottom) */
-#fret-nums-row {
-  position: absolute;
-  bottom: 2px;
-  left: 0; right: 0;
-  display: flex;
-  pointer-events: none;
-  z-index: 2;
-}
-
 .fnum {
   flex: 1;
   text-align: center;
-  font-size: 0.48rem;
-  color: #2e2820;
+  font-size: 0.62rem;
+  color: #807060;
   letter-spacing: 0;
+  line-height: 1;
 }
-.fnum.mk { color: #5a4e3a; }
+.fnum.mk {
+  color: #c8a060;
+  font-weight: 700;
+  font-size: 0.68rem;
+}
 
 .fnum-lbl, .fnum-open {
   flex-shrink: 0;
   text-align: center;
-  font-size: 0.45rem;
-  color: #2e2820;
+  font-size: 0.52rem;
+  color: #554433;
 }
 
 /* ── Legend ──────────────────────────────────────────── */
@@ -361,10 +368,11 @@ body {
 
   <!-- Fretboard -->
   <div id="fb-wrap">
+    <div id="fret-nums-top" class="fret-nums-bar"></div>
     <div id="board">
       <div id="nut-el"></div>
-      <div id="fret-nums-row"></div>
     </div>
+    <div id="fret-nums-bot" class="fret-nums-bar"></div>
   </div>
 
   <!-- Legend -->
@@ -567,7 +575,7 @@ function render() {
   const board    = document.getElementById('board');
   const wrap     = document.getElementById('fb-wrap');
   const W        = wrap.clientWidth  - 16; // padding
-  const H        = wrap.clientHeight - 6;
+  const H        = wrap.clientHeight - 46; // minus two 20px fret-num bars + padding
 
   if (W <= 0 || H <= 0) return;
 
@@ -593,23 +601,27 @@ function render() {
   nutEl.style.left = labelW + 'px';
   nutEl.style.width = nutW + 'px';
 
-  // Fret number row
-  const fnRow = document.getElementById('fret-nums-row');
-  fnRow.innerHTML = '';
-  const fnLbl = document.createElement('span');
-  fnLbl.className = 'fnum-lbl';
-  fnLbl.style.width = labelW + 'px';
-  fnRow.appendChild(fnLbl);
-  const fnOpen = document.createElement('span');
-  fnOpen.className = 'fnum-open';
-  fnOpen.style.width = openW + 'px';
-  fnRow.appendChild(fnOpen);
-  for (let f = 1; f <= FRET_COUNT; f++) {
-    const sp = document.createElement('span');
-    sp.className = 'fnum' + (MARKERS.indexOf(f) >= 0 ? ' mk' : '');
-    sp.textContent = f;
-    fnRow.appendChild(sp);
+  // Build one fret-number bar and clone it to top and bottom
+  function buildFnBar(el) {
+    el.innerHTML = '';
+    const lbl = document.createElement('span');
+    lbl.className = 'fnum-lbl';
+    lbl.style.width = labelW + 'px';
+    el.appendChild(lbl);
+    const op = document.createElement('span');
+    op.className = 'fnum-open';
+    op.style.cssText = 'width:' + (openW + nutW) + 'px; text-align:center;';
+    op.textContent = 'O';
+    el.appendChild(op);
+    for (let f = 1; f <= FRET_COUNT; f++) {
+      const sp = document.createElement('span');
+      sp.className = 'fnum' + (MARKERS.indexOf(f) >= 0 ? ' mk' : '');
+      sp.textContent = f;
+      el.appendChild(sp);
+    }
   }
+  buildFnBar(document.getElementById('fret-nums-top'));
+  buildFnBar(document.getElementById('fret-nums-bot'));
 
   // Inlay dots
   MARKERS.forEach(f => {
