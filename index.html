@@ -1,0 +1,758 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Fretboard">
+<meta name="theme-color" content="#0d0d0d">
+<title>Fretboard Intervals</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon.svg">
+
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=JetBrains+Mono:wght@400;600&display=swap');
+
+/* ── Reset & base ─────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:      #0c0c0c;
+  --surface: #121008;
+  --board:   #130e05;
+  --border:  #362a1a;
+  --nut-col: #e8d5a3;
+  --text:    #ede5d0;
+  --muted:   #5a5248;
+  --accent:  #ff4040;
+}
+
+html { height: 100%; }
+
+body {
+  min-height: 100%;
+  min-height: 100dvh;
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'JetBrains Mono', monospace;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+/* ── Layout shells ───────────────────────────────────── */
+#app {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  max-height: 100dvh;
+  overflow: hidden;
+}
+
+/* ── Header ──────────────────────────────────────────── */
+#header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px 6px;
+  padding-top: calc(8px + env(safe-area-inset-top));
+  border-bottom: 1px solid #1c1810;
+  flex-shrink: 0;
+  background: #0a0905;
+}
+
+#header h1 {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 1.45rem;
+  letter-spacing: 0.14em;
+  color: var(--nut-col);
+  line-height: 1;
+  text-shadow: 0 0 18px rgba(232,213,163,0.2);
+}
+
+#root-badge {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--accent);
+  text-shadow: 0 0 10px rgba(255,64,64,0.4);
+  min-width: 28px;
+}
+
+.header-sep { flex: 1; }
+
+#sound-toggle {
+  background: none;
+  border: 1px solid #333;
+  border-radius: 6px;
+  color: #888;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.6rem;
+  padding: 4px 8px;
+  cursor: pointer;
+  letter-spacing: 0.08em;
+  transition: all 0.15s;
+}
+#sound-toggle.on { border-color: var(--accent); color: var(--accent); }
+
+/* ── Control panel ───────────────────────────────────── */
+#controls {
+  flex-shrink: 0;
+  background: #090806;
+  border-bottom: 1px solid #1c1810;
+  padding: 6px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.ctrl-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ctrl-lbl {
+  font-size: 0.5rem;
+  letter-spacing: 0.18em;
+  color: var(--muted);
+  text-transform: uppercase;
+  width: 44px;
+  flex-shrink: 0;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  flex: 1;
+}
+
+.chip {
+  background: #181410;
+  border: 1px solid #2a2420;
+  color: #6a6058;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.62rem;
+  font-weight: 600;
+  padding: 4px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  transition: background 0.1s, color 0.1s, border-color 0.1s;
+  letter-spacing: 0.03em;
+}
+.chip:active { transform: scale(0.92); }
+.chip.sel-root { background: var(--accent); border-color: var(--accent); color: #fff; box-shadow: 0 0 8px rgba(255,64,64,0.35); }
+.chip.sel { background: #1e1a08; border-color: #5a4a28; color: var(--nut-col); }
+
+.scale-sel {
+  flex: 1;
+  background: #181410;
+  border: 1px solid #2a2420;
+  color: var(--text);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.6rem;
+  padding: 4px 8px;
+  border-radius: 4px;
+  outline: none;
+  cursor: pointer;
+  max-width: 240px;
+}
+
+/* ── Fretboard area ──────────────────────────────────── */
+#fb-wrap {
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+  padding: 4px 8px 2px;
+}
+
+#board {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(180deg, #1a1005 0%, #110c04 100%);
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  box-shadow: 0 4px 24px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.02);
+  position: relative;
+  overflow: hidden;
+}
+
+/* Nut */
+#nut-el {
+  position: absolute;
+  top: 0; bottom: 0;
+  width: 7px;
+  background: linear-gradient(90deg, #c8b870, #f0e0b0, #d4c080);
+  z-index: 8;
+  box-shadow: 2px 0 6px rgba(0,0,0,0.5);
+}
+
+/* Inlay dot */
+.inlay {
+  position: absolute;
+  width: 7px; height: 7px;
+  background: #1e1608;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* String row */
+.srow {
+  position: absolute;
+  left: 0; right: 0;
+  display: flex;
+  align-items: center;
+}
+
+.slbl {
+  flex-shrink: 0;
+  text-align: center;
+  font-size: 0.55rem;
+  color: #5a4a38;
+  font-weight: 600;
+  z-index: 3;
+  letter-spacing: 0.02em;
+}
+
+.swire {
+  position: absolute;
+  left: 0; right: 0;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.open-zone {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 4;
+}
+
+.frets-zone {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  height: 100%;
+  z-index: 4;
+}
+
+.fcell {
+  flex: 1;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+/* Fret wire */
+.fcell::after {
+  content: '';
+  position: absolute;
+  right: 0; top: -50%; bottom: -50%;
+  width: 2px;
+  background: linear-gradient(180deg, #7a6a5a 0%, #4a3a2a 50%, #7a6a5a 100%);
+  z-index: 2;
+  pointer-events: none;
+}
+
+/* Note dot */
+.ndot {
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 600;
+  z-index: 5;
+  flex-shrink: 0;
+  position: relative;
+  cursor: pointer;
+  transition: transform 0.08s, opacity 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.ndot:active { transform: scale(0.82) !important; }
+.ndot.dim { opacity: 0.1; }
+
+/* Tap ripple */
+@keyframes ripple {
+  0%   { transform: scale(1); box-shadow: 0 0 0 0 rgba(255,255,255,0.6); }
+  70%  { transform: scale(1.3); box-shadow: 0 0 0 10px rgba(255,255,255,0); }
+  100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255,255,255,0); }
+}
+.ndot.playing { animation: ripple 0.35s ease-out; }
+
+/* Fret number row (inside board, bottom) */
+#fret-nums-row {
+  position: absolute;
+  bottom: 2px;
+  left: 0; right: 0;
+  display: flex;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.fnum {
+  flex: 1;
+  text-align: center;
+  font-size: 0.48rem;
+  color: #2e2820;
+  letter-spacing: 0;
+}
+.fnum.mk { color: #5a4e3a; }
+
+.fnum-lbl, .fnum-open {
+  flex-shrink: 0;
+  text-align: center;
+  font-size: 0.45rem;
+  color: #2e2820;
+}
+
+/* ── Legend ──────────────────────────────────────────── */
+#legend {
+  flex-shrink: 0;
+  padding: 4px 10px calc(4px + env(safe-area-inset-bottom));
+  border-top: 1px solid #181410;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px 10px;
+  justify-content: center;
+  background: #070605;
+}
+
+.li {
+  display: flex; align-items: center; gap: 4px;
+  font-size: 0.5rem; color: #665e52;
+}
+.ldot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- Header -->
+  <div id="header">
+    <h1>FRETBOARD</h1>
+    <span id="root-badge">C</span>
+    <span class="header-sep"></span>
+    <button id="sound-toggle" class="on">🔊 SOUND ON</button>
+  </div>
+
+  <!-- Controls -->
+  <div id="controls">
+    <div class="ctrl-row">
+      <span class="ctrl-lbl">ROOT</span>
+      <div class="chips" id="root-chips"></div>
+    </div>
+    <div class="ctrl-row">
+      <span class="ctrl-lbl">SCALE</span>
+      <select class="scale-sel" id="scale-sel"></select>
+    </div>
+    <div class="ctrl-row">
+      <span class="ctrl-lbl">TUNING</span>
+      <div class="chips" id="tuning-chips"></div>
+    </div>
+  </div>
+
+  <!-- Fretboard -->
+  <div id="fb-wrap">
+    <div id="board">
+      <div id="nut-el"></div>
+      <div id="fret-nums-row"></div>
+    </div>
+  </div>
+
+  <!-- Legend -->
+  <div id="legend"></div>
+
+</div>
+
+<script>
+'use strict';
+
+// ── Data ──────────────────────────────────────────────────────────────────────
+
+const NOTES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+
+const IVS = [
+  { s:0,  lbl:'R',  name:'Root',       col:'#ff4040', tc:'#fff' },
+  { s:1,  lbl:'b2', name:'Minor 2nd',  col:'#ff8c00', tc:'#fff' },
+  { s:2,  lbl:'2',  name:'Major 2nd',  col:'#ffd700', tc:'#111' },
+  { s:3,  lbl:'b3', name:'Minor 3rd',  col:'#80e880', tc:'#111' },
+  { s:4,  lbl:'3',  name:'Major 3rd',  col:'#00e87a', tc:'#111' },
+  { s:5,  lbl:'4',  name:'4th',        col:'#00bfff', tc:'#111' },
+  { s:6,  lbl:'b5', name:'Tritone',    col:'#cc88ff', tc:'#111' },
+  { s:7,  lbl:'5',  name:'5th',        col:'#f0f0f0', tc:'#111' },
+  { s:8,  lbl:'b6', name:'Minor 6th',  col:'#ff88c2', tc:'#111' },
+  { s:9,  lbl:'6',  name:'Major 6th',  col:'#ff1493', tc:'#fff' },
+  { s:10, lbl:'b7', name:'Minor 7th',  col:'#87ceeb', tc:'#111' },
+  { s:11, lbl:'7',  name:'Major 7th',  col:'#b0d8f0', tc:'#111' },
+];
+
+const SCALES = {
+  'すべて (Chromatic)':       [0,1,2,3,4,5,6,7,8,9,10,11],
+  'Major / Ionian':           [0,2,4,5,7,9,11],
+  'Natural Minor / Aeolian':  [0,2,3,5,7,8,10],
+  'Pentatonic Major':         [0,2,4,7,9],
+  'Pentatonic Minor':         [0,3,5,7,10],
+  'Blues Scale':              [0,3,5,6,7,10],
+  'Dorian':                   [0,2,3,5,7,9,10],
+  'Phrygian':                 [0,1,3,5,7,8,10],
+  'Lydian':                   [0,2,4,6,7,9,11],
+  'Mixolydian':               [0,2,4,5,7,9,10],
+  'Locrian':                  [0,1,3,5,6,8,10],
+  'Harmonic Minor':           [0,2,3,5,7,8,11],
+  'Phrygian Dominant':        [0,1,4,5,7,8,10],
+  'Diminished (W-H)':         [0,2,3,5,6,8,9,11],
+  'Whole Tone':               [0,2,4,6,8,10],
+  'Major Triad':              [0,4,7],
+  'Minor Triad':              [0,3,7],
+  'Dom 7':                    [0,4,7,10],
+  'Maj 7':                    [0,4,7,11],
+  'Min 7':                    [0,3,7,10],
+  'Dim 7':                    [0,3,6,9],
+};
+
+// idx 0 = 6弦 (low E)  idx 5 = 1弦 (high e)
+const TUNINGS = {
+  'Standard': [4,  9, 2, 7, 11, 4],
+  'Drop D':   [2,  9, 2, 7, 11, 4],
+  'Open G':   [2,  7, 2, 7, 11, 2],
+  'Open D':   [2,  9, 2, 6,  9, 2],
+  'DADGAD':   [2,  9, 2, 7,  9, 2],
+  'Eb':       [3,  8, 1, 6, 10, 3],
+};
+
+// Chromatic note frequencies starting from C2 (MIDI 36)
+// We'll compute frequency from MIDI note number
+// Standard tuning: 6弦E2=MIDI40, 5弦A2=MIDI45, 4弦D3=MIDI50, 3弦G3=MIDI55, 2弦B3=MIDI59, 1弦E4=MIDI64
+const STRING_MIDI_BASE = [40, 45, 50, 55, 59, 64]; // idx 0=6弦, idx 5=1弦
+
+const MARKERS     = [3,5,7,9,12,15];
+const DBL_MARKERS = [12];
+
+const STR_THICK = ['2.8px','2.3px','1.9px','1.5px','1.1px','0.8px'];
+const STR_COL   = ['#a89848','#b0a050','#b8a858','#c0b060','#b8a858','#b0a050'];
+
+// ── State ─────────────────────────────────────────────────────────────────────
+let ROOT    = 0;
+let SCALE   = 'すべて (Chromatic)';
+let TUNING  = 'Standard';
+let SOUND   = true;
+
+// ── Audio engine ──────────────────────────────────────────────────────────────
+let audioCtx = null;
+
+function getAudioCtx() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  return audioCtx;
+}
+
+function midiToFreq(midi) {
+  return 440 * Math.pow(2, (midi - 69) / 12);
+}
+
+function playNote(midiNote) {
+  if (!SOUND) return;
+  const ctx = getAudioCtx();
+  const freq = midiToFreq(midiNote);
+  const now  = ctx.currentTime;
+
+  // Oscillator blend: sawtooth + sine for guitar-ish timbre
+  const osc1 = ctx.createOscillator();
+  const osc2 = ctx.createOscillator();
+  const gain1 = ctx.createGain();
+  const gain2 = ctx.createGain();
+  const master = ctx.createGain();
+
+  // Simple lowpass filter to soften the harsh saw
+  const filter = ctx.createBiquadFilter();
+  filter.type = 'lowpass';
+  filter.frequency.setValueAtTime(freq * 6, now);
+  filter.frequency.exponentialRampToValueAtTime(freq * 2, now + 0.4);
+
+  osc1.type = 'sawtooth';
+  osc1.frequency.setValueAtTime(freq, now);
+  gain1.gain.setValueAtTime(0.25, now);
+
+  osc2.type = 'triangle';
+  osc2.frequency.setValueAtTime(freq, now);
+  gain2.gain.setValueAtTime(0.4, now);
+
+  // Pluck envelope
+  master.gain.setValueAtTime(0, now);
+  master.gain.linearRampToValueAtTime(0.55, now + 0.005);
+  master.gain.exponentialRampToValueAtTime(0.001, now + 1.4);
+
+  osc1.connect(gain1); gain1.connect(filter);
+  osc2.connect(gain2); gain2.connect(filter);
+  filter.connect(master);
+  master.connect(ctx.destination);
+
+  osc1.start(now); osc1.stop(now + 1.5);
+  osc2.start(now); osc2.stop(now + 1.5);
+}
+
+// ── UI: static elements ───────────────────────────────────────────────────────
+
+// Root chips
+const rootChipsEl = document.getElementById('root-chips');
+NOTES.forEach((n, i) => {
+  const c = document.createElement('button');
+  c.className = 'chip' + (i === 0 ? ' sel-root' : '');
+  c.textContent = n;
+  c.addEventListener('click', () => {
+    ROOT = i;
+    document.querySelectorAll('#root-chips .chip').forEach((b, j) =>
+      b.classList.toggle('sel-root', j === i));
+    document.getElementById('root-badge').textContent = NOTES[i];
+    render();
+  });
+  rootChipsEl.appendChild(c);
+});
+
+// Scale select
+const scaleSelEl = document.getElementById('scale-sel');
+Object.keys(SCALES).forEach(k => {
+  const o = document.createElement('option');
+  o.value = k; o.textContent = k;
+  if (k === SCALE) o.selected = true;
+  scaleSelEl.appendChild(o);
+});
+scaleSelEl.addEventListener('change', () => { SCALE = scaleSelEl.value; render(); });
+
+// Tuning chips
+const tuningChipsEl = document.getElementById('tuning-chips');
+Object.keys(TUNINGS).forEach(t => {
+  const c = document.createElement('button');
+  c.className = 'chip' + (t === TUNING ? ' sel' : '');
+  c.textContent = t;
+  c.addEventListener('click', () => {
+    TUNING = t;
+    document.querySelectorAll('#tuning-chips .chip').forEach(b =>
+      b.classList.toggle('sel', b.textContent === t));
+    render();
+  });
+  tuningChipsEl.appendChild(c);
+});
+
+// Sound toggle
+const soundToggle = document.getElementById('sound-toggle');
+soundToggle.addEventListener('click', () => {
+  SOUND = !SOUND;
+  soundToggle.textContent = SOUND ? '🔊 SOUND ON' : '🔇 SOUND OFF';
+  soundToggle.classList.toggle('on', SOUND);
+  if (SOUND) getAudioCtx(); // unlock on first toggle
+});
+
+// Legend
+const legendEl = document.getElementById('legend');
+IVS.forEach(iv => {
+  const item = document.createElement('div'); item.className = 'li';
+  const ld = document.createElement('div'); ld.className = 'ldot'; ld.style.background = iv.col;
+  const sp = document.createElement('span'); sp.textContent = iv.lbl + ' ' + iv.name;
+  item.appendChild(ld); item.appendChild(sp);
+  legendEl.appendChild(item);
+});
+
+// ── Render ────────────────────────────────────────────────────────────────────
+
+function render() {
+  const board    = document.getElementById('board');
+  const wrap     = document.getElementById('fb-wrap');
+  const W        = wrap.clientWidth  - 16; // padding
+  const H        = wrap.clientHeight - 6;
+
+  if (W <= 0 || H <= 0) return;
+
+  // Calculate how many frets fit without scrolling
+  // Each string label = labelW, open cell = openW, then N fret cells
+  const labelW  = 34;
+  const openW   = 36;
+  const nutW    = 8;
+  const minCellW = 28; // minimum dot size needs this width
+  const available = W - labelW - openW - nutW;
+  const FRET_COUNT = Math.max(7, Math.min(15, Math.floor(available / minCellW)));
+
+  const numStrings = 6;
+  const rowH = Math.floor(H / numStrings);
+  const dotD = Math.max(18, Math.min(Math.floor(rowH * 0.72), Math.floor((W - labelW - openW) / (FRET_COUNT + 1) * 0.82)));
+  const dotFs = Math.max(8, Math.floor(dotD * 0.36)) + 'px';
+
+  // Clear old children (keep #nut-el and #fret-nums-row)
+  board.querySelectorAll('.srow, .inlay').forEach(el => el.remove());
+
+  // Reposition nut
+  const nutEl = document.getElementById('nut-el');
+  nutEl.style.left = labelW + 'px';
+  nutEl.style.width = nutW + 'px';
+
+  // Fret number row
+  const fnRow = document.getElementById('fret-nums-row');
+  fnRow.innerHTML = '';
+  const fnLbl = document.createElement('span');
+  fnLbl.className = 'fnum-lbl';
+  fnLbl.style.width = labelW + 'px';
+  fnRow.appendChild(fnLbl);
+  const fnOpen = document.createElement('span');
+  fnOpen.className = 'fnum-open';
+  fnOpen.style.width = openW + 'px';
+  fnRow.appendChild(fnOpen);
+  for (let f = 1; f <= FRET_COUNT; f++) {
+    const sp = document.createElement('span');
+    sp.className = 'fnum' + (MARKERS.indexOf(f) >= 0 ? ' mk' : '');
+    sp.textContent = f;
+    fnRow.appendChild(sp);
+  }
+
+  // Inlay dots
+  MARKERS.forEach(f => {
+    if (f > FRET_COUNT) return;
+    const cx = labelW + nutW + openW + ((f - 0.5) / FRET_COUNT) * (W - labelW - nutW - openW);
+    if (DBL_MARKERS.indexOf(f) >= 0) {
+      [-1, 1].forEach(off => {
+        const d = document.createElement('div');
+        d.className = 'inlay';
+        d.style.left  = cx + 'px';
+        d.style.top   = (H / 2 + off * rowH * 0.42) + 'px';
+        board.appendChild(d);
+      });
+    } else {
+      const d = document.createElement('div');
+      d.className = 'inlay';
+      d.style.left = cx + 'px';
+      d.style.top  = (H / 2) + 'px';
+      board.appendChild(d);
+    }
+  });
+
+  const scaleSet = new Set(SCALES[SCALE]);
+  const tuning   = TUNINGS[TUNING];
+
+  // string order: idx5=1弦 top → idx0=6弦 bottom
+  const ORDER = [5, 4, 3, 2, 1, 0];
+
+  ORDER.forEach((si, rowIdx) => {
+    const openNote = tuning[si];
+    const strNum   = 6 - si;
+    const topPx    = rowIdx * rowH;
+    const midY     = rowH / 2;
+
+    const row = document.createElement('div');
+    row.className = 'srow';
+    row.style.cssText = `top:${topPx}px; height:${rowH}px;`;
+
+    // Wire
+    const wire = document.createElement('div');
+    wire.className = 'swire';
+    wire.style.cssText = `top:${midY}px; height:${STR_THICK[si]}; background:linear-gradient(180deg,rgba(255,255,255,0.15) 0%,${STR_COL[si]} 45%,rgba(0,0,0,0.2) 100%); transform:translateY(-50%);`;
+    row.appendChild(wire);
+
+    // Label
+    const lbl = document.createElement('div');
+    lbl.className = 'slbl';
+    lbl.style.width = labelW + 'px';
+    lbl.textContent = strNum + '弦';
+    row.appendChild(lbl);
+
+    // Open cell
+    const openCell = document.createElement('div');
+    openCell.className = 'open-zone';
+    openCell.style.width = (openW + nutW) + 'px';
+    const oivIdx   = ((openNote % 12 + 12) - ROOT + 12) % 12;
+    const oiv      = IVS[oivIdx];
+    const oDot     = makeDot(oiv, dotD, dotFs, scaleSet);
+    const oMidi    = STRING_MIDI_BASE[si]; // open string midi
+    oDot.addEventListener('click', () => {
+      playNote(oMidi);
+      ripple(oDot);
+    });
+    openCell.appendChild(oDot);
+    row.appendChild(openCell);
+
+    // Frets
+    const fzone = document.createElement('div');
+    fzone.className = 'frets-zone';
+
+    for (let f = 1; f <= FRET_COUNT; f++) {
+      const noteIdx = ((openNote + f) % 12 + 12) % 12;
+      const ivIdx   = ((noteIdx - ROOT) + 12) % 12;
+      const iv      = IVS[ivIdx];
+      const cell    = document.createElement('div');
+      cell.className = 'fcell';
+      const dot     = makeDot(iv, dotD, dotFs, scaleSet);
+      const midi    = STRING_MIDI_BASE[si] + f;
+      dot.addEventListener('click', () => {
+        playNote(midi);
+        ripple(dot);
+      });
+      cell.appendChild(dot);
+      fzone.appendChild(cell);
+    }
+
+    row.appendChild(fzone);
+    board.appendChild(row);
+  });
+}
+
+function makeDot(iv, size, fs, scaleSet) {
+  const inScale = scaleSet.has(iv.s);
+  const d = document.createElement('div');
+  d.className = 'ndot' + (inScale ? '' : ' dim');
+  d.style.cssText = [
+    `width:${size}px`,
+    `height:${size}px`,
+    `background:${iv.col}`,
+    `color:${iv.tc}`,
+    `font-size:${fs}`,
+    `box-shadow:0 0 ${inScale ? 7 : 0}px ${iv.col}${inScale ? '99' : '00'}`,
+  ].join(';');
+  d.textContent = iv.lbl;
+  return d;
+}
+
+function ripple(dot) {
+  dot.classList.remove('playing');
+  void dot.offsetWidth; // reflow
+  dot.classList.add('playing');
+  setTimeout(() => dot.classList.remove('playing'), 400);
+}
+
+// ── Resize ────────────────────────────────────────────────────────────────────
+let resizeTimer = null;
+function onResize() {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(render, 60);
+}
+window.addEventListener('resize', onResize);
+screen.orientation && screen.orientation.addEventListener('change', onResize);
+
+// ── Service Worker ────────────────────────────────────────────────────────────
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js').catch(() => {});
+  });
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+// Wait for fonts + layout
+if (document.fonts) {
+  document.fonts.ready.then(render);
+} else {
+  window.addEventListener('load', render);
+}
+setTimeout(render, 100); // fallback
+
+// Unlock audio on first user gesture
+document.addEventListener('click', () => {
+  if (SOUND && !audioCtx) getAudioCtx();
+}, { once: true });
+</script>
+</body>
+</html>
