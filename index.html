@@ -9,6 +9,7 @@
 <meta name="theme-color" content="#0d0d0d">
 <title>Fretboard Intervals</title>
 <link rel="manifest" href="manifest.json">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <link rel="apple-touch-icon" href="icon.svg">
 
 <style>
@@ -147,6 +148,7 @@ body {
 }
 .chip:active { transform: scale(0.92); }
 .chip.sel-root { background: var(--accent); border-color: var(--accent); color: #fff; box-shadow: 0 0 8px rgba(255,64,64,0.35); }
+.chip.sel-chord { background: #0a2030; border-color: #00bfff; color: #80dfff; }
 .chip.sel { background: #1e1a08; border-color: #5a4a28; color: var(--nut-col); }
 
 .scale-sel {
@@ -171,18 +173,7 @@ body {
   flex-direction: column;
   padding: 2px 8px;
   gap: 0;
-}
-
-#board {
-  flex: 1;
-  width: 100%;
   min-height: 0;
-  background: linear-gradient(180deg, #1a1005 0%, #110c04 100%);
-  border-radius: 6px;
-  border: 1px solid var(--border);
-  box-shadow: 0 4px 24px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.02);
-  position: relative;
-  overflow: hidden;
 }
 
 /* Fret number bars — OUTSIDE board, top & bottom */
@@ -192,6 +183,89 @@ body {
   display: flex;
   align-items: center;
   pointer-events: none;
+  overflow: hidden;
+}
+
+/* Fixed label + open spacer in number bar */
+.fnum-fixed {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+
+/* Scrollable part of the fret number bar */
+.fnum-scroll-area {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+}
+
+/* Board outer wrapper: fixed labels + scrollable frets side by side */
+#board-outer {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  box-shadow: 0 4px 24px rgba(0,0,0,0.7);
+  overflow: hidden;
+  position: relative;
+}
+
+/* Fixed left column: string labels + nut */
+#board-fixed {
+  flex-shrink: 0;
+  background: linear-gradient(180deg, #1a1005 0%, #110c04 100%);
+  position: relative;
+  z-index: 6;
+  box-shadow: 3px 0 8px rgba(0,0,0,0.5);
+}
+
+/* Scrollable fret area */
+#board-scroll {
+  flex: 1;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  background: linear-gradient(180deg, #1a1005 0%, #110c04 100%);
+  position: relative;
+  scrollbar-width: none;
+}
+#board-scroll::-webkit-scrollbar { display: none; }
+
+/* Inner canvas for all frets (fixed pixel width set by JS) */
+#board-inner {
+  height: 100%;
+  position: relative;
+}
+
+/* Scroll indicator bar */
+#scroll-indicator {
+  flex-shrink: 0;
+  height: 3px;
+  background: #1a1408;
+  margin: 0 8px;
+  border-radius: 2px;
+  overflow: hidden;
+}
+#scroll-thumb {
+  height: 100%;
+  background: #5a4a30;
+  border-radius: 2px;
+  transition: left 0.05s;
+  position: relative;
+}
+
+#board {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(180deg, #1a1005 0%, #110c04 100%);
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  box-shadow: 0 4px 24px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.02);
+  position: relative;
+  overflow: hidden;
 }
 
 /* Nut */
@@ -320,6 +394,81 @@ body {
   color: #554433;
 }
 
+/* ── Print button ───────────────────────────────────── */
+#print-btn {
+  background: #1e1a10;
+  border: 1px solid #4a3a20;
+  color: #c8a860;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  padding: 5px 10px;
+  border-radius: 5px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+#print-btn:active { background: #2a2010; }
+
+/* ── PDF Preview modal ───────────────────────────────── */
+#pdf-modal {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.85);
+  z-index: 1000;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 16px;
+}
+#pdf-modal.open { display: flex; }
+
+#pdf-preview-wrap {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: auto;
+}
+
+#pdf-canvas {
+  max-width: 100%;
+  max-height: 100%;
+  border-radius: 4px;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.8);
+  display: block;
+}
+
+#pdf-modal-btns {
+  display: flex;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.pdf-btn {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  padding: 8px 20px;
+  border-radius: 6px;
+  cursor: pointer;
+  border: none;
+}
+#pdf-download-btn {
+  background: #c8a860;
+  color: #0a0800;
+}
+#pdf-close-btn {
+  background: #2a2010;
+  border: 1px solid #4a3a20;
+  color: #887050;
+}
+
 /* ── Legend ──────────────────────────────────────────── */
 #legend {
   flex-shrink: 0;
@@ -348,6 +497,7 @@ body {
     <span id="root-badge">C</span>
     <span class="header-sep"></span>
     <button id="sound-toggle" class="on">🔊 SOUND ON</button>
+    <button id="print-btn">📄 PDF</button>
   </div>
 
   <!-- Controls -->
@@ -364,20 +514,41 @@ body {
       <span class="ctrl-lbl">TUNING</span>
       <div class="chips" id="tuning-chips"></div>
     </div>
+    <div class="ctrl-row">
+      <span class="ctrl-lbl">CHORD</span>
+      <div class="chips" id="chord-chips"></div>
+    </div>
   </div>
 
   <!-- Fretboard -->
   <div id="fb-wrap">
     <div id="fret-nums-top" class="fret-nums-bar"></div>
-    <div id="board">
-      <div id="nut-el"></div>
+    <div id="board-outer">
+      <div id="board-fixed"></div>
+      <div id="board-scroll">
+        <div id="board-inner">
+          <div id="nut-el"></div>
+        </div>
+      </div>
     </div>
     <div id="fret-nums-bot" class="fret-nums-bar"></div>
+    <div id="scroll-indicator"><div id="scroll-thumb"></div></div>
   </div>
 
   <!-- Legend -->
   <div id="legend"></div>
 
+</div>
+
+<!-- PDF Preview Modal -->
+<div id="pdf-modal">
+  <div id="pdf-preview-wrap">
+    <canvas id="pdf-canvas"></canvas>
+  </div>
+  <div id="pdf-modal-btns">
+    <button class="pdf-btn" id="pdf-download-btn">⬇ PDFを保存</button>
+    <button class="pdf-btn" id="pdf-close-btn">✕ 閉じる</button>
+  </div>
 </div>
 
 <script>
@@ -426,6 +597,26 @@ const SCALES = {
   'Dim 7':                    [0,3,6,9],
 };
 
+// ── Chord definitions (intervals from root) ──────────────────────────────────
+const CHORDS = {
+  'major':    { lbl:'maj',   tones:[0,4,7] },
+  'minor':    { lbl:'min',   tones:[0,3,7] },
+  'dom7':     { lbl:'7',     tones:[0,4,7,10] },
+  'maj7':     { lbl:'M7',    tones:[0,4,7,11] },
+  'min7':     { lbl:'m7',    tones:[0,3,7,10] },
+  'min7b5':   { lbl:'m7♭5',  tones:[0,3,6,10] },
+  'dim7':     { lbl:'dim7',  tones:[0,3,6,9] },
+  'aug':      { lbl:'aug',   tones:[0,4,8] },
+  'sus2':     { lbl:'sus2',  tones:[0,2,7] },
+  'sus4':     { lbl:'sus4',  tones:[0,5,7] },
+  'add9':     { lbl:'add9',  tones:[0,2,4,7] },
+  'maj9':     { lbl:'M9',    tones:[0,2,4,7,11] },
+  'min9':     { lbl:'m9',    tones:[0,2,3,7,10] },
+  'dom9':     { lbl:'9',     tones:[0,2,4,7,10] },
+  '6':        { lbl:'6',     tones:[0,4,7,9] },
+  'min6':     { lbl:'m6',    tones:[0,3,7,9] },
+};
+
 // idx 0 = 6弦 (low E)  idx 5 = 1弦 (high e)
 const TUNINGS = {
   'Standard': [4,  9, 2, 7, 11, 4],
@@ -452,6 +643,7 @@ let ROOT    = 0;
 let SCALE   = 'すべて (Chromatic)';
 let TUNING  = 'Standard';
 let SOUND   = true;
+let CHORD   = null; // null = off, string key = active chord
 
 // ── Audio engine ──────────────────────────────────────────────────────────────
 let audioCtx = null;
@@ -550,6 +742,35 @@ Object.keys(TUNINGS).forEach(t => {
   tuningChipsEl.appendChild(c);
 });
 
+// Chord chips
+const chordChipsEl = document.getElementById('chord-chips');
+// OFF chip
+const offChip = document.createElement('button');
+offChip.className = 'chip sel-chord';
+offChip.textContent = 'OFF';
+offChip.dataset.chord = '';
+offChip.addEventListener('click', () => {
+  CHORD = null;
+  document.querySelectorAll('#chord-chips .chip').forEach(b => b.classList.remove('sel-chord'));
+  offChip.classList.add('sel-chord');
+  render();
+});
+chordChipsEl.appendChild(offChip);
+
+Object.entries(CHORDS).forEach(([key, cd]) => {
+  const c = document.createElement('button');
+  c.className = 'chip';
+  c.textContent = cd.lbl;
+  c.addEventListener('click', () => {
+    CHORD = (CHORD === key) ? null : key;
+    document.querySelectorAll('#chord-chips .chip').forEach(b => b.classList.remove('sel-chord'));
+    if (CHORD) c.classList.add('sel-chord');
+    else offChip.classList.add('sel-chord');
+    render();
+  });
+  chordChipsEl.appendChild(c);
+});
+
 // Sound toggle
 const soundToggle = document.getElementById('sound-toggle');
 soundToggle.addEventListener('click', () => {
@@ -571,84 +792,121 @@ IVS.forEach(iv => {
 
 // ── Render ────────────────────────────────────────────────────────────────────
 
+const FRET_TOTAL = 15; // always render all 15 frets
+
 function render() {
-  const board    = document.getElementById('board');
   const wrap     = document.getElementById('fb-wrap');
-  const W        = wrap.clientWidth  - 16; // padding
-  const H        = wrap.clientHeight - 46; // minus two 20px fret-num bars + padding
+  const fixedEl  = document.getElementById('board-fixed');
+  const scrollEl = document.getElementById('board-scroll');
+  const innerEl  = document.getElementById('board-inner');
+  const nutEl    = document.getElementById('nut-el');
+
+  const W = wrap.clientWidth - 16;
+  const H = wrap.clientHeight - 46; // minus top+bottom fret-num bars (20px each) + padding
 
   if (W <= 0 || H <= 0) return;
 
-  // Calculate how many frets fit without scrolling
-  // Each string label = labelW, open cell = openW, then N fret cells
-  const labelW  = 34;
-  const openW   = 36;
-  const nutW    = 8;
-  const minCellW = 28; // minimum dot size needs this width
-  const available = W - labelW - openW - nutW;
-  const FRET_COUNT = Math.max(7, Math.min(15, Math.floor(available / minCellW)));
+  // Layout constants
+  const labelW = 34;  // string label column (fixed)
+  const openW  = 38;  // open string column (fixed)
+  const nutW   = 7;   // nut width
+  const fixedW = labelW + openW; // total fixed-left width
+
+  const scrollW = W - fixedW;
+
+  // cellW: on landscape show all frets at once; on portrait fix at ~44px so scroll is always available
+  const isLandscape = W > H * 1.2;
+  const cellW = isLandscape
+    ? Math.max(28, Math.floor(scrollW / FRET_TOTAL))  // landscape: fit all
+    : Math.max(44, Math.floor(scrollW / 10));          // portrait: show ~10, scroll for rest
+  const innerW = cellW * FRET_TOTAL;
 
   const numStrings = 6;
-  const rowH = Math.floor(H / numStrings);
-  const dotD = Math.max(18, Math.min(Math.floor(rowH * 0.72), Math.floor((W - labelW - openW) / (FRET_COUNT + 1) * 0.82)));
-  const dotFs = Math.max(8, Math.floor(dotD * 0.36)) + 'px';
+  const rowH  = Math.floor(H / numStrings);
+  const dotD  = Math.max(20, Math.min(Math.floor(rowH * 0.74), Math.floor(cellW * 0.82)));
+  const dotFs = Math.max(8, Math.floor(dotD * 0.37)) + 'px';
 
-  // Clear old children (keep #nut-el and #fret-nums-row)
-  board.querySelectorAll('.srow, .inlay').forEach(el => el.remove());
+  // Size the containers
+  fixedEl.style.width  = fixedW + 'px';
+  fixedEl.style.height = H + 'px';
+  scrollEl.style.height = H + 'px';
+  innerEl.style.width  = innerW + 'px';
+  innerEl.style.height = H + 'px';
 
-  // Reposition nut
-  const nutEl = document.getElementById('nut-el');
-  nutEl.style.left = labelW + 'px';
-  nutEl.style.width = nutW + 'px';
+  // Nut sits in the fixed column, right edge
+  nutEl.style.cssText = `position:absolute; left:${fixedW - nutW}px; top:0; bottom:0; width:${nutW}px; background:linear-gradient(90deg,#c8b870,#f0e0b0,#d4c080); z-index:8; box-shadow:2px 0 6px rgba(0,0,0,.5);`;
+  // Move nut to fixed panel
+  if (!fixedEl.contains(nutEl)) fixedEl.appendChild(nutEl);
 
-  // Build one fret-number bar and clone it to top and bottom
-  function buildFnBar(el) {
-    el.innerHTML = '';
-    const lbl = document.createElement('span');
-    lbl.className = 'fnum-lbl';
-    lbl.style.width = labelW + 'px';
-    el.appendChild(lbl);
-    const op = document.createElement('span');
-    op.className = 'fnum-open';
-    op.style.cssText = 'width:' + (openW + nutW) + 'px; text-align:center;';
-    op.textContent = 'O';
-    el.appendChild(op);
-    for (let f = 1; f <= FRET_COUNT; f++) {
-      const sp = document.createElement('span');
-      sp.className = 'fnum' + (MARKERS.indexOf(f) >= 0 ? ' mk' : '');
+  // Clear old rows/inlays
+  fixedEl.querySelectorAll('.srow-fixed').forEach(e => e.remove());
+  innerEl.querySelectorAll('.srow-scroll, .inlay').forEach(e => e.remove());
+
+  // Fret number bars — fixed spacer + scrollable number row
+  // Numbers are in a flex row; scrollLeft is kept in sync with board-scroll via JS
+  function buildFnBar(barEl) {
+    barEl.innerHTML = '';
+    barEl.style.cssText += 'overflow:hidden; display:flex;';
+
+    // Fixed-width spacer (matches the fixed left column)
+    const spacer = document.createElement('div');
+    spacer.style.cssText = `flex-shrink:0; width:${fixedW}px;`;
+    barEl.appendChild(spacer);
+
+    // Scrollable number container (overflow:hidden, JS-scrolled)
+    const scroller = document.createElement('div');
+    scroller.style.cssText = `flex:1; overflow:hidden; display:flex;`;
+
+    const inner = document.createElement('div');
+    inner.style.cssText = `display:flex; flex-shrink:0;`;
+
+    for (let f = 1; f <= FRET_TOTAL; f++) {
+      const sp = document.createElement('div');
+      const isMk = MARKERS.indexOf(f) >= 0;
+      sp.style.cssText = [
+        `width:${cellW}px`,
+        `flex-shrink:0`,
+        `text-align:center`,
+        `font-size:${isMk ? '0.66rem' : '0.58rem'}`,
+        `font-weight:${isMk ? '700' : '400'}`,
+        `color:${isMk ? '#c8a060' : '#706050'}`,
+        `line-height:20px`,
+      ].join(';');
       sp.textContent = f;
-      el.appendChild(sp);
+      inner.appendChild(sp);
     }
+    scroller.appendChild(inner);
+    barEl.appendChild(scroller);
+    return scroller; // for scrollLeft sync
   }
-  buildFnBar(document.getElementById('fret-nums-top'));
-  buildFnBar(document.getElementById('fret-nums-bot'));
+  const fnTopScroller = buildFnBar(document.getElementById('fret-nums-top'));
+  const fnBotScroller = buildFnBar(document.getElementById('fret-nums-bot'));
 
-  // Inlay dots
+  // Inlay dots in inner scroll canvas
   MARKERS.forEach(f => {
-    if (f > FRET_COUNT) return;
-    const cx = labelW + nutW + openW + ((f - 0.5) / FRET_COUNT) * (W - labelW - nutW - openW);
+    if (f > FRET_TOTAL) return;
+    const cx = (f - 0.5) * cellW;
     if (DBL_MARKERS.indexOf(f) >= 0) {
       [-1, 1].forEach(off => {
         const d = document.createElement('div');
         d.className = 'inlay';
-        d.style.left  = cx + 'px';
-        d.style.top   = (H / 2 + off * rowH * 0.42) + 'px';
-        board.appendChild(d);
+        d.style.cssText = `left:${cx}px; top:${H/2 + off * rowH * 0.42}px;`;
+        innerEl.appendChild(d);
       });
     } else {
       const d = document.createElement('div');
       d.className = 'inlay';
-      d.style.left = cx + 'px';
-      d.style.top  = (H / 2) + 'px';
-      board.appendChild(d);
+      d.style.cssText = `left:${cx}px; top:${H/2}px;`;
+      innerEl.appendChild(d);
     }
   });
 
-  const scaleSet = new Set(SCALES[SCALE]);
+  // When a chord is active, highlight only chord tones (override scale)
+  const activeSet = CHORD
+    ? new Set(CHORDS[CHORD].tones)
+    : new Set(SCALES[SCALE]);
   const tuning   = TUNINGS[TUNING];
-
-  // string order: idx5=1弦 top → idx0=6弦 bottom
-  const ORDER = [5, 4, 3, 2, 1, 0];
+  const ORDER    = [5, 4, 3, 2, 1, 0]; // 1弦 top → 6弦 bottom
 
   ORDER.forEach((si, rowIdx) => {
     const openNote = tuning[si];
@@ -656,61 +914,83 @@ function render() {
     const topPx    = rowIdx * rowH;
     const midY     = rowH / 2;
 
-    const row = document.createElement('div');
-    row.className = 'srow';
-    row.style.cssText = `top:${topPx}px; height:${rowH}px;`;
+    // ── Fixed row: label + open dot ──────────────────────
+    const fixedRow = document.createElement('div');
+    fixedRow.className = 'srow-fixed';
+    fixedRow.style.cssText = `position:absolute; left:0; right:0; top:${topPx}px; height:${rowH}px; display:flex; align-items:center; z-index:3;`;
 
-    // Wire
-    const wire = document.createElement('div');
-    wire.className = 'swire';
-    wire.style.cssText = `top:${midY}px; height:${STR_THICK[si]}; background:linear-gradient(180deg,rgba(255,255,255,0.15) 0%,${STR_COL[si]} 45%,rgba(0,0,0,0.2) 100%); transform:translateY(-50%);`;
-    row.appendChild(wire);
+    // String wire (spans full fixed width)
+    const wireF = document.createElement('div');
+    wireF.style.cssText = `position:absolute; left:0; right:0; top:${midY}px; height:${STR_THICK[si]}; background:linear-gradient(180deg,rgba(255,255,255,0.15) 0%,${STR_COL[si]} 45%,rgba(0,0,0,0.2) 100%); transform:translateY(-50%); z-index:1; pointer-events:none;`;
+    fixedRow.appendChild(wireF);
 
     // Label
     const lbl = document.createElement('div');
-    lbl.className = 'slbl';
-    lbl.style.width = labelW + 'px';
+    lbl.style.cssText = `width:${labelW}px; flex-shrink:0; text-align:center; font-size:0.58rem; color:#5a4a38; font-weight:600; z-index:2; letter-spacing:0.02em;`;
     lbl.textContent = strNum + '弦';
-    row.appendChild(lbl);
+    fixedRow.appendChild(lbl);
 
-    // Open cell
+    // Open dot
     const openCell = document.createElement('div');
-    openCell.className = 'open-zone';
-    openCell.style.width = (openW + nutW) + 'px';
-    const oivIdx   = ((openNote % 12 + 12) - ROOT + 12) % 12;
-    const oiv      = IVS[oivIdx];
-    const oDot     = makeDot(oiv, dotD, dotFs, scaleSet);
-    const oMidi    = STRING_MIDI_BASE[si]; // open string midi
-    oDot.addEventListener('click', () => {
-      playNote(oMidi);
-      ripple(oDot);
-    });
+    openCell.style.cssText = `width:${openW}px; flex-shrink:0; display:flex; align-items:center; justify-content:center; z-index:4;`;
+    const oivIdx = ((openNote % 12 + 12) - ROOT + 12) % 12;
+    const oDot   = makeDot(IVS[oivIdx], dotD, dotFs, activeSet);
+    const oMidi  = STRING_MIDI_BASE[si];
+    oDot.addEventListener('click', () => { playNote(oMidi); ripple(oDot); });
     openCell.appendChild(oDot);
-    row.appendChild(openCell);
+    fixedRow.appendChild(openCell);
+    fixedEl.appendChild(fixedRow);
 
-    // Frets
-    const fzone = document.createElement('div');
-    fzone.className = 'frets-zone';
+    // ── Scroll row: fret dots ─────────────────────────────
+    const scrollRow = document.createElement('div');
+    scrollRow.className = 'srow-scroll';
+    scrollRow.style.cssText = `position:absolute; left:0; top:${topPx}px; height:${rowH}px; display:flex; align-items:center; z-index:3; width:${innerW}px;`;
 
-    for (let f = 1; f <= FRET_COUNT; f++) {
+    // Wire continues across scroll area
+    const wireS = document.createElement('div');
+    wireS.style.cssText = `position:absolute; left:0; right:0; top:${midY}px; height:${STR_THICK[si]}; background:linear-gradient(180deg,rgba(255,255,255,0.12) 0%,${STR_COL[si]} 45%,rgba(0,0,0,0.2) 100%); transform:translateY(-50%); z-index:1; pointer-events:none;`;
+    scrollRow.appendChild(wireS);
+
+    for (let f = 1; f <= FRET_TOTAL; f++) {
       const noteIdx = ((openNote + f) % 12 + 12) % 12;
       const ivIdx   = ((noteIdx - ROOT) + 12) % 12;
       const iv      = IVS[ivIdx];
-      const cell    = document.createElement('div');
-      cell.className = 'fcell';
-      const dot     = makeDot(iv, dotD, dotFs, scaleSet);
-      const midi    = STRING_MIDI_BASE[si] + f;
-      dot.addEventListener('click', () => {
-        playNote(midi);
-        ripple(dot);
-      });
-      cell.appendChild(dot);
-      fzone.appendChild(cell);
-    }
 
-    row.appendChild(fzone);
-    board.appendChild(row);
+      const cell = document.createElement('div');
+      cell.style.cssText = `width:${cellW}px; flex-shrink:0; height:100%; display:flex; align-items:center; justify-content:center; position:relative; z-index:4;`;
+
+      // Fret wire line on right edge
+      const fw = document.createElement('div');
+      fw.style.cssText = `position:absolute; right:0; top:-20px; bottom:-20px; width:2px; background:linear-gradient(180deg,#7a6a5a 0%,#4a3a2a 50%,#7a6a5a 100%); z-index:2; pointer-events:none;`;
+      cell.appendChild(fw);
+
+      const dot  = makeDot(iv, dotD, dotFs, activeSet);
+      const midi = STRING_MIDI_BASE[si] + f;
+      dot.addEventListener('click', () => { playNote(midi); ripple(dot); });
+      cell.appendChild(dot);
+      scrollRow.appendChild(cell);
+    }
+    innerEl.appendChild(scrollRow);
   });
+
+  // ── Sync fret-number bars + scroll indicator ─────────
+  scrollEl.onscroll = () => {
+    const sl = scrollEl.scrollLeft;
+    // Sync fret number bars
+    fnTopScroller.scrollLeft = sl;
+    fnBotScroller.scrollLeft = sl;
+    // Scroll indicator thumb
+    const maxScroll = innerW - scrollW;
+    const pct = maxScroll > 0 ? sl / maxScroll : 0;
+    const thumbW = Math.max(20, Math.round(scrollW / innerW * 100));
+    const thumbLeft = Math.round(pct * (100 - thumbW));
+    const thumb = document.getElementById('scroll-thumb');
+    if (thumb) {
+      thumb.style.width = thumbW + '%';
+      thumb.style.marginLeft = thumbLeft + '%';
+    }
+  };
+  scrollEl.dispatchEvent(new Event('scroll'));
 }
 
 function makeDot(iv, size, fs, scaleSet) {
@@ -751,6 +1031,211 @@ if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('./sw.js').catch(() => {});
   });
 }
+
+// ── Print ────────────────────────────────────────────────────────────────────
+
+function buildPrintSVG() {
+  // A4 landscape inner size at 96dpi: ~1050 x 690 (after 10mm margins)
+  const PW = 1050, PH = 690;
+  const labelW = 44, openW = 50, nutW = 10;
+  const fixedW = labelW + openW;
+  const fretW  = Math.floor((PW - fixedW) / FRET_TOTAL);
+  const numStrings = 6;
+  const rowH   = Math.floor((PH - 80) / numStrings); // 80px for fret nums top+bottom + title
+  const dotR   = Math.floor(Math.min(rowH * 0.34, fretW * 0.38));
+  const fontSize = Math.max(9, dotR * 0.72);
+
+  const scaleSet = CHORD ? new Set(CHORDS[CHORD].tones) : new Set(SCALES[SCALE]);
+  const tuning   = TUNINGS[TUNING];
+  const ORDER    = [5, 4, 3, 2, 1, 0];
+
+  let svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${PW}" height="${PH}" style="font-family:monospace;background:#fff;">`;
+
+  // Title
+  svg += `<text x="10" y="22" font-size="14" font-weight="bold" fill="#222">FRETBOARD INTERVALS — Root: ${NOTES[ROOT]} / Scale: ${SCALE} / Tuning: ${TUNING}</text>`;
+
+  const boardTop = 36;
+
+  // Fret numbers top
+  for (let f = 1; f <= FRET_TOTAL; f++) {
+    const cx = fixedW + (f - 0.5) * fretW;
+    const isMk = MARKERS.indexOf(f) >= 0;
+    svg += `<text x="${cx}" y="${boardTop - 4}" text-anchor="middle" font-size="${isMk ? 11 : 9}" font-weight="${isMk ? 'bold' : 'normal'}" fill="${isMk ? '#8a6020' : '#888'}">${f}</text>`;
+  }
+
+  // Board background
+  const boardH = rowH * numStrings;
+  svg += `<rect x="0" y="${boardTop}" width="${PW}" height="${boardH}" fill="#1a1005" rx="6"/>`;
+
+  // Nut
+  svg += `<rect x="${fixedW - nutW}" y="${boardTop}" width="${nutW}" height="${boardH}" fill="#e8d5a3"/>`;
+
+  // Inlay dots
+  MARKERS.forEach(f => {
+    const cx = fixedW + (f - 0.5) * fretW;
+    const cy = boardTop + boardH / 2;
+    if (DBL_MARKERS.indexOf(f) >= 0) {
+      [-1,1].forEach(off => {
+        svg += `<circle cx="${cx}" cy="${cy + off * rowH * 0.38}" r="5" fill="#1e1608"/>`;
+      });
+    } else {
+      svg += `<circle cx="${cx}" cy="${cy}" r="5" fill="#1e1608"/>`;
+    }
+  });
+
+  // Fret wires
+  for (let f = 1; f <= FRET_TOTAL; f++) {
+    const x = fixedW + f * fretW;
+    svg += `<line x1="${x}" y1="${boardTop}" x2="${x}" y2="${boardTop + boardH}" stroke="#5a4a3a" stroke-width="2"/>`;
+  }
+
+  // Strings
+  ORDER.forEach((si, rowIdx) => {
+    const openNote = tuning[si];
+    const strNum   = 6 - si;
+    const midY     = boardTop + rowIdx * rowH + rowH / 2;
+    const thick    = [3,2.5,2.2,1.8,1.4,1.1][si];
+
+    // String wire
+    svg += `<line x1="0" y1="${midY}" x2="${PW}" y2="${midY}" stroke="#b0a080" stroke-width="${thick}" opacity="0.7"/>`;
+
+    // String label
+    svg += `<text x="${labelW/2}" y="${midY + 4}" text-anchor="middle" font-size="11" font-weight="bold" fill="#8a7a60">${strNum}弦</text>`;
+
+    // Row divider
+    if (rowIdx > 0) {
+      svg += `<line x1="0" y1="${boardTop + rowIdx * rowH}" x2="${PW}" y2="${boardTop + rowIdx * rowH}" stroke="#2a2010" stroke-width="1"/>`;
+    }
+
+    // Open dot
+    const oivIdx = ((openNote % 12 + 12) - ROOT + 12) % 12;
+    const oiv    = IVS[oivIdx];
+    const inScale0 = scaleSet.has(oiv.s);
+    const ox = labelW + openW / 2;
+    svg += `<circle cx="${ox}" cy="${midY}" r="${dotR}" fill="${oiv.col}" opacity="${inScale0 ? 1 : 0.12}"/>`;
+    svg += `<text x="${ox}" y="${midY + fontSize*0.36}" text-anchor="middle" font-size="${fontSize}" font-weight="bold" fill="${oiv.tc}" opacity="${inScale0 ? 1 : 0.12}">${oiv.lbl}</text>`;
+
+    // Fret dots
+    for (let f = 1; f <= FRET_TOTAL; f++) {
+      const noteIdx  = ((openNote + f) % 12 + 12) % 12;
+      const ivIdx    = ((noteIdx - ROOT) + 12) % 12;
+      const iv       = IVS[ivIdx];
+      const inScale  = scaleSet.has(iv.s);
+      const cx       = fixedW + (f - 0.5) * fretW;
+      const opacity  = inScale ? 1 : 0.12;
+      svg += `<circle cx="${cx}" cy="${midY}" r="${dotR}" fill="${iv.col}" opacity="${opacity}"/>`;
+      svg += `<text x="${cx}" y="${midY + fontSize*0.36}" text-anchor="middle" font-size="${fontSize}" font-weight="bold" fill="${iv.tc}" opacity="${opacity}">${iv.lbl}</text>`;
+    }
+  });
+
+  // Fret numbers bottom
+  for (let f = 1; f <= FRET_TOTAL; f++) {
+    const cx = fixedW + (f - 0.5) * fretW;
+    const isMk = MARKERS.indexOf(f) >= 0;
+    svg += `<text x="${cx}" y="${boardTop + boardH + 16}" text-anchor="middle" font-size="${isMk ? 11 : 9}" font-weight="${isMk ? 'bold' : 'normal'}" fill="${isMk ? '#8a6020' : '#888'}">${f}</text>`;
+  }
+
+  // Legend
+  let lx = 0;
+  const ly = boardTop + boardH + 34;
+  IVS.forEach(iv => {
+    if (scaleSet.has(iv.s)) {
+      svg += `<circle cx="${lx + 8}" cy="${ly}" r="7" fill="${iv.col}"/>`;
+      svg += `<text x="${lx + 18}" y="${ly + 4}" font-size="9" fill="#444">${iv.lbl} ${iv.name}</text>`;
+      lx += 90;
+    }
+  });
+
+  svg += '</svg>';
+  return svg;
+}
+
+// ── PDF generation ───────────────────────────────────────────────────────────
+
+let pdfSvgString = '';
+
+function showPdfModal() {
+  const svgStr  = buildPrintSVG();
+  pdfSvgString  = svgStr;
+  const modal   = document.getElementById('pdf-modal');
+  const canvas  = document.getElementById('pdf-canvas');
+  modal.classList.add('open');
+
+  // Render SVG onto canvas for preview
+  const blob = new Blob([svgStr], { type: 'image/svg+xml' });
+  const url  = URL.createObjectURL(blob);
+  const img  = new Image();
+  img.onload = () => {
+    // A4 landscape ratio 297:210
+    const maxW = Math.min(window.innerWidth  - 32, 900);
+    const maxH = Math.min(window.innerHeight - 120, 600);
+    const ratio = Math.min(maxW / img.naturalWidth, maxH / img.naturalHeight);
+    canvas.width  = Math.round(img.naturalWidth  * ratio);
+    canvas.height = Math.round(img.naturalHeight * ratio);
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    URL.revokeObjectURL(url);
+  };
+  img.src = url;
+}
+
+async function downloadPdf() {
+  const btn = document.getElementById('pdf-download-btn');
+  btn.textContent = '生成中...';
+  btn.disabled = true;
+
+  try {
+    // Render SVG at high resolution (A4 landscape @ 150dpi: 1754 x 1240)
+    const PW = 1754, PH = 1240;
+    const blob = new Blob([pdfSvgString], { type: 'image/svg+xml' });
+    const url  = URL.createObjectURL(blob);
+
+    await new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width  = PW;
+        canvas.height = PH;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, PW, PH);
+        // Scale SVG (1050x690) up to 1754x1240
+        ctx.drawImage(img, 0, 0, PW, PH);
+        URL.revokeObjectURL(url);
+
+        // Convert to PDF using jsPDF
+        const { jsPDF } = window.jspdf;
+        const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+        const imgData = canvas.toDataURL('image/jpeg', 0.95);
+        pdf.addImage(imgData, 'JPEG', 0, 0, 297, 210);
+
+        // Filename
+        const chordLabel = CHORD ? CHORDS[CHORD].lbl : '';
+        const fname = `fretboard_${NOTES[ROOT]}${chordLabel}_${SCALE.replace(/[^a-zA-Z0-9]/g,'_')}.pdf`;
+        pdf.save(fname);
+        resolve();
+      };
+      img.onerror = reject;
+      img.src = url;
+    });
+  } catch(e) {
+    alert('PDF生成に失敗しました: ' + e.message);
+  }
+
+  btn.textContent = '⬇ PDFを保存';
+  btn.disabled = false;
+}
+
+document.getElementById('print-btn').addEventListener('click', showPdfModal);
+document.getElementById('pdf-download-btn').addEventListener('click', downloadPdf);
+document.getElementById('pdf-close-btn').addEventListener('click', () => {
+  document.getElementById('pdf-modal').classList.remove('open');
+});
+// Close on backdrop tap
+document.getElementById('pdf-modal').addEventListener('click', e => {
+  if (e.target.id === 'pdf-modal') document.getElementById('pdf-modal').classList.remove('open');
+});
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 // Wait for fonts + layout
